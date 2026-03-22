@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -11,7 +12,14 @@ const zlib = require('zlib');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'tu_secreto_muy_seguro_cambiar_en_produccion'; // CAMBIAR EN PRODUCCIÓN
+const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_muy_seguro_cambiar_en_produccion';
+
+// ---------- Configuración de la base de datos ----------
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'database', 'database.sqlite');
+const DB_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DB_DIR)) {
+  fs.mkdirSync(DB_DIR, { recursive: true });
+}
 
 // Middleware
 app.use(cors({
@@ -22,10 +30,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Redirigir raíz a login
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
 // Middleware para verificar token JWT
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+  const token = authHeader && authHeader.split(' ')[1];
   if (!token) {
     return res.status(401).json({ error: 'No autenticado' });
   }
@@ -41,15 +54,15 @@ function authenticateToken(req, res, next) {
 
 // ---------- Base de datos ----------
 function openDB() {
-  const dbPath = path.join(__dirname, 'database', 'database.sqlite');
   return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
+    const db = new sqlite3.Database(DB_PATH, (err) => {
       if (err) reject(err);
       else resolve(db);
     });
   });
 }
 
+// Inicializar base de datos (tablas y usuario master)
 const initDatabase = require('./database/init');
 
 // ---------- Función para obtener tasa BCV ----------
@@ -134,11 +147,10 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  // El logout se maneja en el frontend eliminando el token.
   res.json({ success: true });
 });
 
-// Tasa BCV (pública)
+// Tasa BCV
 app.get('/api/tasa-bcv', async (req, res) => {
   try {
     const tasa = await obtenerTasaBCV();
@@ -815,6 +827,7 @@ async function revertirPago(pagoId) {
 initDatabase().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`Base de datos en: ${DB_PATH}`);
   });
 }).catch(err => {
   console.error('Error al inicializar BD:', err);
