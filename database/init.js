@@ -1,95 +1,73 @@
 // database/init.js
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// Usar variable de entorno DB_PATH si está definida, si no, ruta local por defecto
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'database.sqlite');
-const DB_DIR = path.dirname(DB_PATH);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
-// Crear el directorio si no existe
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-}
-
-function initDatabase() {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) {
-        console.error('❌ Error al conectar a la BD:', err);
-        reject(err);
-        return;
-      }
-      console.log('✅ Conectado a la base de datos SQLite.');
-    });
-
-    db.serialize(() => {
-      // Tabla grupos
-      db.run(`CREATE TABLE IF NOT EXISTS grupos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+async function initDatabase() {
+  const client = await pool.connect();
+  try {
+    // Crear tablas si no existen
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS grupos (
+        id SERIAL PRIMARY KEY,
         nombre TEXT NOT NULL UNIQUE
-      )`);
+      );
+    `);
 
-      // Tabla propietarios (con saldo_favor)
-      db.run(`CREATE TABLE IF NOT EXISTS propietarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS propietarios (
+        id SERIAL PRIMARY KEY,
         apartamento TEXT NOT NULL UNIQUE,
         nombre TEXT NOT NULL,
         telefono TEXT,
         email TEXT,
-        grupo_id INTEGER,
-        saldo_favor REAL DEFAULT 0,
-        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE SET NULL
-      )`);
+        grupo_id INTEGER REFERENCES grupos(id) ON DELETE SET NULL,
+        saldo_favor REAL DEFAULT 0
+      );
+    `);
 
-      // Tabla usuarios
-      db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id SERIAL PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
         rol TEXT NOT NULL CHECK(rol IN ('master', 'propietario')),
-        propietario_id INTEGER UNIQUE,
-        FOREIGN KEY (propietario_id) REFERENCES propietarios(id) ON DELETE CASCADE
-      )`);
+        propietario_id INTEGER UNIQUE REFERENCES propietarios(id) ON DELETE CASCADE
+      );
+    `);
 
-      // Tabla deudas (con original_monto)
-      db.run(`CREATE TABLE IF NOT EXISTS deudas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        propietario_id INTEGER NOT NULL,
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS deudas (
+        id SERIAL PRIMARY KEY,
+        propietario_id INTEGER NOT NULL REFERENCES propietarios(id) ON DELETE CASCADE,
         periodo TEXT NOT NULL,
         monto_usd REAL NOT NULL,
         fecha_vencimiento TEXT,
-        pagado BOOLEAN DEFAULT 0,
+        pagado BOOLEAN DEFAULT false,
         fecha_pago TEXT,
         referencia_pago TEXT,
-        original_monto REAL,
-        FOREIGN KEY (propietario_id) REFERENCES propietarios(id) ON DELETE CASCADE
-      )`);
+        original_monto REAL
+      );
+    `);
 
-      // Si la tabla ya existía sin original_monto, agregar la columna
-      db.run(`ALTER TABLE deudas ADD COLUMN original_monto REAL`, (err) => {
-        if (err && !err.message.includes('duplicate column')) {
-          console.warn('No se pudo añadir original_monto:', err.message);
-        } else {
-          console.log('✅ Columna original_monto añadida (si no existía)');
-        }
-      });
-
-      // Tabla recibos
-      db.run(`CREATE TABLE IF NOT EXISTS recibos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS recibos (
+        id SERIAL PRIMARY KEY,
         periodo TEXT NOT NULL,
         monto_usd REAL NOT NULL,
-        grupo_id INTEGER,
-        fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
-      )`);
+        grupo_id INTEGER REFERENCES grupos(id) ON DELETE CASCADE,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-      // Tabla pagos
-      db.run(`CREATE TABLE IF NOT EXISTS pagos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        propietario_id INTEGER NOT NULL,
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pagos (
+        id SERIAL PRIMARY KEY,
+        propietario_id INTEGER NOT NULL REFERENCES propietarios(id) ON DELETE CASCADE,
         fecha_pago TEXT,
         monto_bs REAL,
         tasa_bcv REAL,
@@ -97,38 +75,28 @@ function initDatabase() {
         referencia TEXT,
         imagen_ruta TEXT,
         estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'verificado')),
-        fecha_registro TEXT DEFAULT CURRENT_TIMESTAMP,
-        fecha_verificacion TEXT,
-        FOREIGN KEY (propietario_id) REFERENCES propietarios(id) ON DELETE CASCADE
-      )`);
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_verificacion TIMESTAMP
+      );
+    `);
 
-      // Asegurar que la columna saldo_favor existe (para BD antiguas)
-      db.run(`ALTER TABLE propietarios ADD COLUMN saldo_favor REAL DEFAULT 0`, (err) => {
-        if (err && !err.message.includes('duplicate column')) {
-          console.warn('No se pudo añadir saldo_favor:', err.message);
-        }
-      });
-    });
-
-    // Crear usuario master
+    // Crear usuario master si no existe
     const masterUsername = 'admin';
     const masterPassword = 'admin123';
     const hash = bcrypt.hashSync(masterPassword, 10);
-
-    db.get('SELECT id FROM usuarios WHERE username = ?', [masterUsername], (err, row) => {
-      if (err) console.error('Error al buscar master:', err);
-      else if (!row) {
-        db.run('INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)',
-          [masterUsername, hash, 'master'],
-          (err) => { if (err) console.error('Error al crear master:', err); else console.log('✅ Usuario master creado: admin / admin123'); });
-      } else console.log('ℹ️ Usuario master ya existe');
-    });
-
-    db.close((err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+    const result = await client.query('SELECT id FROM usuarios WHERE username = $1', [masterUsername]);
+    if (result.rows.length === 0) {
+      await client.query(
+        'INSERT INTO usuarios (username, password, rol) VALUES ($1, $2, $3)',
+        [masterUsername, hash, 'master']
+      );
+      console.log('✅ Usuario master creado: admin / admin123');
+    } else {
+      console.log('ℹ️ Usuario master ya existe');
+    }
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = initDatabase;
