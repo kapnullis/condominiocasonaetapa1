@@ -133,6 +133,48 @@ async function apartamentoExiste(apartamento, exceptId = null) {
   }
 }
 
+// ---------- Descargar deudas y pagos de un propietario ----------
+async function descargarDeudasPropietario(propietarioId, apartamento, nombre) {
+  try {
+    const deudas = await api.getDeudasByPropietario(propietarioId);
+    if (!deudas || deudas.length === 0) {
+      alert('No hay deudas registradas para este propietario.');
+      return;
+    }
+
+    // Preparar datos para CSV
+    const rows = deudas.map(d => ({
+      'Período': d.periodo,
+      'Monto USD': d.monto_usd,
+      'Vencimiento': d.fecha_vencimiento || '',
+      'Estado': d.pagado ? 'Pagada' : 'Pendiente',
+      'Fecha de Pago': d.fecha_pago || '',
+      'Referencia de Pago': d.referencia_pago || ''
+    }));
+
+    // Convertir a CSV
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n');
+
+    // Crear archivo y descargar
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM para UTF-8
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', `deudas_pagos_${apartamento}_${nombre.replace(/ /g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Error al descargar deudas:', err);
+    alert('Error al generar el reporte: ' + err.message);
+  }
+}
+
 // ---------- Cargar grupos para propietarios (incluye pestaña "Sin grupo") ----------
 async function cargarGruposPropietarios() {
   const container = document.getElementById('gruposPropContainer');
@@ -255,17 +297,18 @@ async function cargarPropietarios(grupoId = null) {
       const saldoClase = esSaldoAFavor ? 'saldo-favor' : 'saldo-deuda';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${p.id}</td>
-         <td>${p.apartamento}</td>
-         <td>${p.nombre}</td>
-         <td>${p.telefono || ''}</td>
-         <td>${p.email || ''}</td>
-         <td>${usuario ? usuario.username : '—'}</td>
-        <td class="${saldoClase}">${saldoTexto}</td>
-         <td>
-          <button onclick="editarPropietario(${p.id})">Editar</button>
-          <button onclick="eliminarPropietario(${p.id})">Eliminar</button>
-         </td>
+           <td>${p.id}</td>
+           <td>${p.apartamento}</td>
+           <td>${p.nombre}</td>
+           <td>${p.telefono || ''}</td>
+           <td>${p.email || ''}</td>
+           <td>${usuario ? usuario.username : '—'}</td>
+          <td class="${saldoClase}">${saldoTexto}</td>
+          <td>
+            <button onclick="editarPropietario(${p.id})">Editar</button>
+            <button onclick="eliminarPropietario(${p.id})">Eliminar</button>
+            <button onclick="descargarDeudasPropietario(${p.id}, '${p.apartamento}', '${p.nombre}')">Descargar</button>
+          </td>
       `;
       tbody.appendChild(tr);
     }
@@ -561,10 +604,10 @@ async function cargarRecibos() {
       const grupoNombre = grupo ? grupo.nombre : 'Todos';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${r.periodo}</td>
-         <td>$${r.monto_usd.toFixed(2)}</td>
-         <td>${grupoNombre}</td>
-         <td><button onclick="eliminarRecibo(${r.id})">Eliminar</button></td>
+          <td>${r.periodo}</td>
+          <td>$${r.monto_usd.toFixed(2)}</td>
+          <td>${grupoNombre}</td>
+          <td><button onclick="eliminarRecibo(${r.id})">Eliminar</button></td>
       `;
       tbody.appendChild(tr);
     }
@@ -812,16 +855,16 @@ async function cargarDeudas(propietarioId) {
       const isPaid = d.pagado === 1;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${d.periodo}</td>
-         <td>$${d.monto_usd.toFixed(2)}</td>
-         <td>${d.fecha_vencimiento || '—'}</td>
+          <td>${d.periodo}</td>
+          <td>$${d.monto_usd.toFixed(2)}</td>
+          <td>${d.fecha_vencimiento || '—'}</td>
         <td class="${isPaid ? 'verificado' : 'pendiente'}">${isPaid ? 'Pagada' : 'Pendiente'}</td>
-         <td>${d.fecha_pago || '—'}</td>
-         <td>${d.referencia_pago || '—'}</td>
-         <td>
+          <td>${d.fecha_pago || '—'}</td>
+          <td>${d.referencia_pago || '—'}</td>
+          <td>
           <button onclick="editarDeuda(${d.id})">Editar</button>
           <button onclick="eliminarDeuda(${d.id})">Eliminar</button>
-         </td>
+          </td>
       `;
       tbody.appendChild(tr);
     }
@@ -929,12 +972,12 @@ async function cargarPagosPendientes() {
     pagos.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${p.propietario_nombre} (${p.apartamento})</td>
-         <td>${p.fecha_pago || '—'}</td>
-         <td>${p.monto_bs ? p.monto_bs.toFixed(2) : '—'}</td>
-         <td>${p.referencia || '—'}</td>
-         <td>${p.tasa_bcv ? p.tasa_bcv.toFixed(2) : '—'}</td>
-         <td><button class="btn-verificar" onclick="verificarPago(${p.id})">Verificar</button></td>
+          <td>${p.propietario_nombre} (${p.apartamento})</td>
+          <td>${p.fecha_pago || '—'}</td>
+          <td>${p.monto_bs ? p.monto_bs.toFixed(2) : '—'}</td>
+          <td>${p.referencia || '—'}</td>
+          <td>${p.tasa_bcv ? p.tasa_bcv.toFixed(2) : '—'}</td>
+          <td><button class="btn-verificar" onclick="verificarPago(${p.id})">Verificar</button></td>
       `;
       tbody.appendChild(tr);
     });
@@ -1163,15 +1206,15 @@ async function cargarUsuarios() {
     for (const u of usuariosActuales) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${u.id}</td>
-         <td>${u.username}</td>
-         <td>${u.propietario_nombre || '—'}</td>
-         <td>${u.apartamento || '—'}</td>
-         <td>${u.rol}</td>
-         <td>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.propietario_nombre || '—'}</td>
+          <td>${u.apartamento || '—'}</td>
+          <td>${u.rol}</td>
+          <td>
           <button onclick="editarUsuario(${u.id})">Editar</button>
           <button onclick="eliminarUsuario(${u.id})" ${u.username === 'admin' ? 'disabled' : ''}>Eliminar</button>
-         </td>
+          </td>
       `;
       tbody.appendChild(tr);
     }
