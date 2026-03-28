@@ -27,7 +27,6 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
   const res = await fetch(`${API_BASE}${endpoint}`, options);
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
-      // Token inválido o expirado, redirigir al login
       localStorage.removeItem('token');
       window.location.href = '/login.html';
       throw new Error('Sesión expirada');
@@ -44,13 +43,11 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
 
 // ---------- API simplificada ----------
 const api = {
-  // Grupos
   getGrupos: () => fetchAPI('/grupos'),
   addGrupo: (nombre) => fetchAPI('/grupos', 'POST', { nombre }),
   updateGrupo: (id, nombre) => fetchAPI(`/grupos/${id}`, 'PUT', { nombre }),
   deleteGrupo: (id) => fetchAPI(`/grupos/${id}`, 'DELETE'),
 
-  // Propietarios
   getPropietarios: () => fetchAPI('/propietarios'),
   getPropietariosConSaldo: () => fetchAPI('/propietarios/saldo'),
   addPropietario: (propietario) => fetchAPI('/propietarios', 'POST', propietario),
@@ -58,32 +55,26 @@ const api = {
   deletePropietario: (id) => fetchAPI(`/propietarios/${id}`, 'DELETE'),
   getPropietarioById: (id) => fetchAPI(`/propietarios/${id}`),
 
-  // Usuarios de propietarios
   getUsuarioByPropietarioId: (propietarioId) => fetchAPI(`/propietarios/${propietarioId}/usuario`),
   crearUsuarioPropietario: (propietarioId, username, password) => fetchAPI(`/propietarios/${propietarioId}/usuario`, 'POST', { username, password }),
   actualizarUsuarioPropietario: (propietarioId, username, password) => fetchAPI(`/propietarios/${propietarioId}/usuario`, 'PUT', { username, password }),
 
-  // Recibos
   addRecibo: (recibo) => fetchAPI('/recibos', 'POST', recibo),
   getRecibos: (grupoId) => fetchAPI('/recibos' + (grupoId ? `?grupoId=${grupoId}` : '')),
   deleteRecibo: (id) => fetchAPI(`/recibos/${id}`, 'DELETE'),
 
-  // Deudas
   addDeuda: (deuda) => fetchAPI('/deudas', 'POST', deuda),
   getDeudas: (propietarioId) => fetchAPI('/deudas' + (propietarioId ? `?propietarioId=${propietarioId}` : '')),
   getDeudasByPropietario: (propietarioId) => fetchAPI(`/propietarios/${propietarioId}/deudas`),
   updateDeuda: (deuda) => fetchAPI(`/deudas/${deuda.id}`, 'PUT', deuda),
   deleteDeuda: (id) => fetchAPI(`/deudas/${id}`, 'DELETE'),
 
-  // Asignar propietarios a grupo
   asignarPropietariosAGrupo: (ids, grupoId) => fetchAPI(`/grupos/${grupoId}/asignar`, 'POST', { ids }),
 
-  // Pagos
   getPagosPendientes: () => fetchAPI('/pagos/pendientes'),
   verificarPago: (pagoId) => fetchAPI(`/pagos/${pagoId}/verificar`, 'POST'),
   revertirPago: (pagoId) => fetchAPI(`/pagos/${pagoId}/revertir`, 'POST'),
 
-  // Usuarios (master)
   getAllUsers: () => fetchAPI('/usuarios'),
   updateUser: (userId, username, password) => fetchAPI(`/usuarios/${userId}`, 'PUT', { username, password }),
   deleteUser: (userId) => fetchAPI(`/usuarios/${userId}`, 'DELETE'),
@@ -141,7 +132,6 @@ async function cargarGruposPropietarios() {
     grupos = await api.getGrupos();
     container.innerHTML = '';
 
-    // Pestaña "Sin grupo"
     const sinGrupoTab = document.createElement('div');
     sinGrupoTab.className = 'group-tab';
     sinGrupoTab.style.backgroundColor = (grupoPropSeleccionado === null) ? '#007bff' : '#6c757d';
@@ -159,7 +149,6 @@ async function cargarGruposPropietarios() {
     sinGrupoTab.appendChild(actionsDivSinGrupo);
     container.appendChild(sinGrupoTab);
 
-    // Pestañas para grupos existentes
     for (const g of grupos) {
       const tabDiv = document.createElement('div');
       tabDiv.className = 'group-tab';
@@ -255,17 +244,17 @@ async function cargarPropietarios(grupoId = null) {
       const saldoClase = esSaldoAFavor ? 'saldo-favor' : 'saldo-deuda';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${p.id}</td>
-         <td>${p.apartamento}</td>
-         <td>${p.nombre}</td>
-         <td>${p.telefono || ''}</td>
-         <td>${p.email || ''}</td>
-         <td>${usuario ? usuario.username : '—'}</td>
-        <td class="${saldoClase}">${saldoTexto}</td>
-         <td>
-          <button onclick="editarPropietario(${p.id})">Editar</button>
-          <button onclick="eliminarPropietario(${p.id})">Eliminar</button>
-         </td>
+          <td>${p.id}</td>
+          <td>${p.apartamento}</td>
+          <td>${p.nombre}</td>
+          <td>${p.telefono || ''}</td>
+          <td>${p.email || ''}</td>
+          <td>${usuario ? usuario.username : '—'}</td>
+          <td class="${saldoClase}">${saldoTexto}</td>
+          <td>
+            <button onclick="editarPropietario(${p.id})">Editar</button>
+            <button onclick="eliminarPropietario(${p.id})">Eliminar</button>
+          </td>
       `;
       tbody.appendChild(tr);
     }
@@ -482,7 +471,10 @@ function mostrarModalGrupo(editMode = false, grupo = null) {
     grupoIdInput.value = grupo.id;
     grupoNombreInput.value = grupo.nombre;
     document.getElementById('modalGrupoTitulo').textContent = 'Editar Grupo';
-    cargarPropietariosSinGrupo();
+    // FIX: manejar errores al cargar propietarios sin grupo
+    cargarPropietariosSinGrupo().catch(err => {
+      console.error('Error al cargar propietarios sin grupo:', err);
+    });
   } else {
     grupoIdInput.value = '';
     grupoNombreInput.value = '';
@@ -561,10 +553,10 @@ async function cargarRecibos() {
       const grupoNombre = grupo ? grupo.nombre : 'Todos';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${r.periodo}</td>
-         <td>$${r.monto_usd.toFixed(2)}</td>
-         <td>${grupoNombre}</td>
-         <td><button onclick="eliminarRecibo(${r.id})">Eliminar</button></td>
+          <td>${r.periodo}</td>
+          <td>$${r.monto_usd.toFixed(2)}</td>
+          <td>${grupoNombre}</td>
+          <td><button onclick="eliminarRecibo(${r.id})">Eliminar</button></td>
       `;
       tbody.appendChild(tr);
     }
@@ -765,6 +757,7 @@ async function cargarPropiedadesDeuda(grupoId) {
 async function actualizarSaldoPropietario(propietarioId) {
   try {
     const prop = await api.getPropietarioById(propietarioId);
+    // FIX: si el propietario no existe, salir sin error
     if (!prop) return;
     const deudas = await api.getDeudasByPropietario(propietarioId);
     const totalDeudas = deudas.reduce((sum, d) => sum + (d.pagado ? 0 : d.monto_usd), 0);
@@ -783,10 +776,10 @@ async function actualizarSaldoPropietario(propietarioId) {
 
 async function seleccionarPropiedadDeuda(propId) {
   propiedadSeleccionada = propId;
-  // Resaltar botón
   const btns = document.querySelectorAll('#propiedadesContainer button');
   const props = await api.getPropietarios();
   const prop = props.find(p => p.id === propId);
+  if (!prop) return; // FIX: si no se encuentra la propiedad, salir
   btns.forEach(btn => {
     if (btn.textContent === prop.apartamento) btn.style.backgroundColor = '#007bff';
     else btn.style.backgroundColor = '#6c757d';
@@ -802,26 +795,27 @@ async function cargarDeudas(propietarioId) {
   tbody.innerHTML = '<td colspan="7">Cargando...<\/td>';
   try {
     const deudas = await api.getDeudasByPropietario(propietarioId);
-    deudasGlobal = deudas;
+    // FIX: asegurar que deudasGlobal sea siempre un array
+    deudasGlobal = deudas || [];
     tbody.innerHTML = '';
-    if (deudas.length === 0) {
+    if (deudasGlobal.length === 0) {
       tbody.innerHTML = '<td colspan="7">No hay deudas registradas para esta propiedad.<\/td>';
       return;
     }
-    for (const d of deudas) {
+    for (const d of deudasGlobal) {
       const isPaid = d.pagado === 1;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${d.periodo}</td>
-         <td>$${d.monto_usd.toFixed(2)}</td>
-         <td>${d.fecha_vencimiento || '—'}</td>
-        <td class="${isPaid ? 'verificado' : 'pendiente'}">${isPaid ? 'Pagada' : 'Pendiente'}</td>
-         <td>${d.fecha_pago || '—'}</td>
-         <td>${d.referencia_pago || '—'}</td>
-         <td>
-          <button onclick="editarDeuda(${d.id})">Editar</button>
-          <button onclick="eliminarDeuda(${d.id})">Eliminar</button>
-         </td>
+          <td>${d.periodo}</td>
+          <td>$${d.monto_usd.toFixed(2)}</td>
+          <td>${d.fecha_vencimiento || '—'}</td>
+          <td class="${isPaid ? 'verificado' : 'pendiente'}">${isPaid ? 'Pagada' : 'Pendiente'}</td>
+          <td>${d.fecha_pago || '—'}</td>
+          <td>${d.referencia_pago || '—'}</td>
+          <td>
+            <button onclick="editarDeuda(${d.id})">Editar</button>
+            <button onclick="eliminarDeuda(${d.id})">Eliminar</button>
+          </td>
       `;
       tbody.appendChild(tr);
     }
@@ -891,6 +885,8 @@ formDeuda.addEventListener('submit', async (e) => {
 });
 
 window.editarDeuda = async (id) => {
+  // FIX: asegurar que deudasGlobal sea un array antes de find
+  if (!Array.isArray(deudasGlobal)) deudasGlobal = [];
   const deuda = deudasGlobal.find(d => d.id === id);
   if (!deuda) return;
   const props = await api.getPropietarios();
@@ -929,12 +925,12 @@ async function cargarPagosPendientes() {
     pagos.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${p.propietario_nombre} (${p.apartamento})</td>
-         <td>${p.fecha_pago || '—'}</td>
-         <td>${p.monto_bs ? p.monto_bs.toFixed(2) : '—'}</td>
-         <td>${p.referencia || '—'}</td>
-         <td>${p.tasa_bcv ? p.tasa_bcv.toFixed(2) : '—'}</td>
-         <td><button class="btn-verificar" onclick="verificarPago(${p.id})">Verificar</button></td>
+          <td>${p.propietario_nombre} (${p.apartamento})</td>
+          <td>${p.fecha_pago || '—'}</td>
+          <td>${p.monto_bs ? p.monto_bs.toFixed(2) : '—'}</td>
+          <td>${p.referencia || '—'}</td>
+          <td>${p.tasa_bcv ? p.tasa_bcv.toFixed(2) : '—'}</td>
+          <td><button class="btn-verificar" onclick="verificarPago(${p.id})">Verificar</button></td>
       `;
       tbody.appendChild(tr);
     });
@@ -1000,6 +996,13 @@ btnProcesarCSV.addEventListener('click', async () => {
 
   importProgress.innerHTML = '<p>Procesando archivo...</p>';
   btnProcesarCSV.disabled = true;
+
+  // FIX: verificar que Papa Parse esté disponible
+  if (typeof Papa === 'undefined') {
+    importProgress.innerHTML = '<p style="color:red;">Error: Librería Papa Parse no cargada. Contacte al administrador.</p>';
+    btnProcesarCSV.disabled = false;
+    return;
+  }
 
   Papa.parse(file, {
     header: true,
@@ -1163,15 +1166,15 @@ async function cargarUsuarios() {
     for (const u of usuariosActuales) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-         <td>${u.id}</td>
-         <td>${u.username}</td>
-         <td>${u.propietario_nombre || '—'}</td>
-         <td>${u.apartamento || '—'}</td>
-         <td>${u.rol}</td>
-         <td>
-          <button onclick="editarUsuario(${u.id})">Editar</button>
-          <button onclick="eliminarUsuario(${u.id})" ${u.username === 'admin' ? 'disabled' : ''}>Eliminar</button>
-         </td>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.propietario_nombre || '—'}</td>
+          <td>${u.apartamento || '—'}</td>
+          <td>${u.rol}</td>
+          <td>
+            <button onclick="editarUsuario(${u.id})">Editar</button>
+            <button onclick="eliminarUsuario(${u.id})" ${u.username === 'admin' ? 'disabled' : ''}>Eliminar</button>
+          </td>
       `;
       tbody.appendChild(tr);
     }
@@ -1235,6 +1238,51 @@ window.eliminarUsuario = async (userId) => {
   }
 };
 
+// ---------- Descargar deudas y pagos de un propietario ----------
+// FIX: Esta función estaba definida pero no se usaba. Se deja con validación adicional.
+async function descargarDeudasPropietario(propietarioId, apartamento, nombre) {
+  // Validación de parámetros
+  if (!propietarioId || !apartamento || !nombre) {
+    alert('Faltan datos para generar el reporte.');
+    return;
+  }
+  try {
+    const deudas = await api.getDeudasByPropietario(propietarioId);
+    if (!deudas || deudas.length === 0) {
+      alert('No hay deudas registradas para este propietario.');
+      return;
+    }
+
+    const rows = deudas.map(d => ({
+      'Período': d.periodo,
+      'Monto USD': d.monto_usd,
+      'Vencimiento': d.fecha_vencimiento || '',
+      'Estado': d.pagado ? 'Pagada' : 'Pendiente',
+      'Fecha de Pago': d.fecha_pago || '',
+      'Referencia de Pago': d.referencia_pago || ''
+    }));
+
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', `deudas_pagos_${apartamento}_${nombre.replace(/ /g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Error al descargar deudas:', err);
+    alert('Error al generar el reporte: ' + err.message);
+  }
+}
+
 // ---------- Logout ----------
 document.getElementById('logout').addEventListener('click', () => {
   localStorage.removeItem('token');
@@ -1249,7 +1297,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
   try {
-    // Hacemos una petición de prueba para validar token
     await api.getGrupos();
   } catch (err) {
     // Si falla, ya se redirige dentro de fetchAPI
@@ -1259,4 +1306,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await cargarGruposParaDeudas();
   await cargarRecibos();
   cargarPagosPendientes();
+});
+
+// FIX: Manejador global de promesas rechazadas (útil para depuración)
+window.addEventListener('unhandledrejection', event => {
+  console.error('Promesa rechazada no manejada:', event.reason);
 });
