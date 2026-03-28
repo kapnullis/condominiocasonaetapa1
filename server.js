@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { Pool } = require('pg');
+const { Pool } = require('pg'); // ← Cambio a PostgreSQL
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { load } = require('cheerio');
@@ -15,16 +15,10 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_muy_seguro_cambiar_en_produccion';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-// ---------- Configuración de la base de datos PostgreSQL (SSL corregido) ----------
-// Detectamos si la conexión es local para evitar SSL en desarrollo
-const isLocal = process.env.DATABASE_URL && (
-  process.env.DATABASE_URL.includes('localhost') ||
-  process.env.DATABASE_URL.includes('127.0.0.1')
-);
-
+// ---------- Configuración de la base de datos PostgreSQL ----------
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isLocal ? false : { rejectUnauthorized: false }   // ← FIX: SSL siempre activo en producción
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 // Middleware
