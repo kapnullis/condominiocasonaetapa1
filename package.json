@@ -1,27 +1,15 @@
 {
-  "name": "gestion-pagos-condominio",
+  "name": "condominio-backend",
   "version": "1.0.0",
-  "description": "Aplicación para gestionar pagos de condominio con recibos en PDF",
-  "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "electron": "^41.0.3"
+    "start": "node server.js"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "bcryptjs": "^3.0.3",
-    "cheerio": "^1.2.0",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "express-session": "^1.19.0",
-    "jsonwebtoken": "^9.0.3",
-    "pg": "^8.20.0",
-    "sqlite3": "^5.1.7"
+    "bcryptjs": "^2.4.3",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "pg": "^8.11.0"
   }
 }
