@@ -6,6 +6,7 @@
   <title>Master - Gestión de Pagos</title>
   <link rel="stylesheet" href="styles.css">
   <style>
+    /* ========== ESTILOS BASE ========== */
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -81,8 +82,8 @@
       margin: 5% auto;
       padding: 20px;
       border: 1px solid #888;
-      width: 500px;
-      max-width: 90%;
+      width: 900px;
+      max-width: 95%;
       border-radius: 8px;
     }
     .modal-content input, .modal-content select {
@@ -147,6 +148,88 @@
       color: red;
       font-weight: bold;
     }
+
+    /* ========== ESTILOS PARA EL MODAL DE RECIBO MEJORADO ========== */
+    .gasto-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .gasto-row input, .gasto-row span {
+      flex: 1;
+    }
+    .gasto-row .gasto-desc {
+      flex: 2;
+    }
+    .gasto-row .gasto-monto {
+      flex: 1;
+    }
+    .gasto-row .gasto-usd {
+      flex: 1;
+      text-align: right;
+    }
+    .gasto-row button {
+      margin: 0;
+      padding: 5px 8px;
+      background-color: #dc3545;
+    }
+    #btnAgregarGasto {
+      background-color: #28a745;
+      margin-top: 5px;
+    }
+    .grupo-alicuota-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .grupo-alicuota-row select {
+      flex: 2;
+      margin: 0;
+    }
+    .grupo-alicuota-row input {
+      flex: 1;
+      margin: 0;
+    }
+    .grupo-alicuota-row button {
+      margin: 0;
+      background-color: #dc3545;
+    }
+    .gasto-especifico-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      background: #e9ecef;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .gasto-especifico-row select, .gasto-especifico-row input {
+      margin: 0;
+    }
+    .gasto-especifico-row button {
+      margin: 0;
+      background-color: #dc3545;
+    }
+    .resumen-propietarios {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .tabla-alicuotas {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .tabla-alicuotas th, .tabla-alicuotas td {
+      border: 1px solid #ddd;
+      padding: 5px;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
@@ -169,18 +252,10 @@
       <div id="propietariosTableContainer">
         <table id="tablaPropietarios">
           <thead>
-            
-              <th>ID</th>
-              <th>Apartamento</th>
-              <th>Nombre</th>
-              <th>Teléfono</th>
-              <th>Email</th>
-              <th>Usuario</th>
-              <th>Saldo Neto</th>
-              <th>Acciones</th>
-             </thead>
+            <tr><th>ID</th><th>Apartamento</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Usuario</th><th>Saldo Neto</th><th>Acciones</th></tr>
+          </thead>
           <tbody></tbody>
-          </table>
+        </table>
       </div>
     </section>
 
@@ -189,32 +264,18 @@
       <h2>Recibos de Condominio</h2>
       <button id="btnAgregarRecibo">Agregar Recibo</button>
       <table id="tablaRecibos">
-        <thead>
-          
-            <th>Período</th>
-            <th>Monto (USD)</th>
-            <th>Grupo</th>
-            <th>Acciones</th>
-           </thead>
+        <thead><tr><th>Período</th><th>Monto Total (USD)</th><th>Grupos</th><th>Acciones</th></tr></thead>
         <tbody></tbody>
-        </table>
+      </table>
     </section>
 
     <!-- Sección Pagos Pendientes -->
     <section>
       <h2>Pagos Pendientes de Verificación</h2>
       <table id="tablaPagos">
-        <thead>
-          
-            <th>Propietario</th>
-            <th>Fecha Pago</th>
-            <th>Monto (Bs)</th>
-            <th>Referencia</th>
-            <th>Tasa BCV</th>
-            <th>Acciones</th>
-           </thead>
+        <thead><tr><th>Propietario</th><th>Fecha Pago</th><th>Monto (Bs)</th><th>Referencia</th><th>Tasa BCV</th><th>Acciones</th></tr></thead>
         <tbody></tbody>
-        </table>
+      </table>
     </section>
 
     <!-- Sección Deudas -->
@@ -228,16 +289,7 @@
       <div id="deudasTableContainer">
         <button id="btnAgregarDeuda" style="margin-bottom: 10px;">Agregar Deuda</button>
         <table id="tablaDeudas">
-          <thead>
-            
-              <th>Período</th>
-              <th>Monto (USD)</th>
-              <th>Vencimiento</th>
-              <th>Estado</th>
-              <th>Fecha Pago</th>
-              <th>Referencia</th>
-              <th>Acciones</th>
-             </thead>
+          <thead><tr><th>Período</th><th>Monto (USD)</th><th>Vencimiento</th><th>Estado</th><th>Fecha Pago</th><th>Referencia</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -251,42 +303,17 @@
       <h3 id="modalTitulo">Nuevo Propietario</h3>
       <form id="formPropietario">
         <input type="hidden" id="propietarioId">
-        <div>
-          <label>Apartamento:</label>
-          <input type="text" id="apartamento" required>
-        </div>
-        <div>
-          <label>Nombre:</label>
-          <input type="text" id="nombre" required>
-        </div>
-        <div>
-          <label>Teléfono:</label>
-          <input type="text" id="telefono">
-        </div>
-        <div>
-          <label>Email:</label>
-          <input type="email" id="email">
-        </div>
-        <div>
-          <label>Grupo (Edificio/Bloque):</label>
-          <select id="grupoSelect"></select>
-        </div>
-        <div>
-          <label>Usuario (para acceso):</label>
-          <input type="text" id="username">
-          <small>Se generará automáticamente si se deja en blanco</small>
-        </div>
-        <div>
-          <label>Contraseña:</label>
-          <input type="password" id="password">
-          <small>Si se deja en blanco, se generará automáticamente</small>
-        </div>
+        <div><label>Apartamento:</label><input type="text" id="apartamento" required></div>
+        <div><label>Nombre:</label><input type="text" id="nombre" required></div>
+        <div><label>Teléfono:</label><input type="text" id="telefono"></div>
+        <div><label>Email:</label><input type="email" id="email"></div>
+        <div><label>Grupo (Edificio/Bloque):</label><select id="grupoSelect"></select></div>
+        <div><label>Usuario (para acceso):</label><input type="text" id="username"><small>Se generará automáticamente si se deja en blanco</small></div>
+        <div><label>Contraseña:</label><input type="password" id="password"><small>Si se deja en blanco, se generará automáticamente</small></div>
         <button type="submit">Guardar</button>
       </form>
       <div id="credencialesGeneradas" style="margin-top:10px; padding:10px; background:#d4edda; display:none;">
-        <strong>¡Usuario creado!</strong><br>
-        Usuario: <span id="nuevoUsername"></span><br>
-        Contraseña: <span id="nuevoPassword"></span><br>
+        <strong>¡Usuario creado!</strong><br>Usuario: <span id="nuevoUsername"></span><br>Contraseña: <span id="nuevoPassword"></span><br>
         <small>Anota estas credenciales para entregar al propietario.</small>
       </div>
     </div>
@@ -299,10 +326,7 @@
       <h3 id="modalGrupoTitulo">Nuevo Grupo</h3>
       <form id="formGrupo">
         <input type="hidden" id="grupoId">
-        <div>
-          <label>Nombre del grupo (ej. Edificio 1, Casa 2):</label>
-          <input type="text" id="grupoNombre" required>
-        </div>
+        <div><label>Nombre del grupo (ej. Edificio 1, Casa 2):</label><input type="text" id="grupoNombre" required></div>
         <button type="submit">Guardar</button>
       </form>
       <div id="asignarPropietariosContainer" style="margin-top:15px; border-top:1px solid #ccc; padding-top:10px;">
@@ -313,26 +337,65 @@
     </div>
   </div>
 
-  <!-- Modal para recibo -->
+  <!-- ========== MODAL DE RECIBO MEJORADO ========== -->
   <div id="modalRecibo" class="modal" style="display:none;">
     <div class="modal-content">
       <span class="close">&times;</span>
-      <h3>Agregar Recibo</h3>
+      <h3>Crear Recibo de Condominio</h3>
       <form id="formRecibo">
         <div>
           <label>Período (MM/AAAA):</label>
           <input type="text" id="periodoRecibo" placeholder="03/2025" required>
         </div>
         <div>
-          <label>Monto (USD):</label>
-          <input type="number" step="0.01" id="montoUSDRecibo" required>
+          <label>Tasa BCV (USD a VES):</label>
+          <div style="display: flex; gap: 10px;">
+            <input type="number" id="tasaBCV" step="0.01" readonly style="flex:1">
+            <button type="button" id="btnActualizarTasa" style="margin:0;">Obtener tasa</button>
+          </div>
+          <small id="fechaTasa"></small>
+        </div>
+
+        <!-- Gastos del condominio en VES -->
+        <div>
+          <label>Gastos del condominio (en bolívares):</label>
+          <div id="gastosContainer"></div>
+          <button type="button" id="btnAgregarGasto" style="background-color:#28a745;">+ Agregar gasto</button>
         </div>
         <div>
-          <label>Grupo (opcional):</label>
-          <select id="grupoRecibo"></select>
-          <small>Dejar en blanco para aplicar a todos los grupos</small>
+          <label>Total gastos en USD:</label>
+          <strong><span id="totalGastosUSD">0.00</span> USD</strong>
         </div>
-        <button type="submit">Guardar</button>
+
+        <!-- Distribución por grupos (alícuotas) -->
+        <div style="margin-top: 20px;">
+          <label>Distribución por grupos (alícuotas):</label>
+          <div id="gruposAlicuotasContainer"></div>
+          <button type="button" id="btnAgregarGrupoAlicuota" style="background-color:#17a2b8;">+ Agregar grupo</button>
+          <div id="sumaAlicuotasMsg" style="margin-top:5px; font-weight:bold;"></div>
+        </div>
+
+        <!-- Gastos específicos (adicionales) -->
+        <div style="margin-top: 20px;">
+          <label>Gastos específicos (adicionales a la distribución por alícuota):</label>
+          <div id="gastosEspecificosContainer"></div>
+          <button type="button" id="btnAgregarGastoEspecifico" style="background-color:#ffc107; color:#212529;">+ Agregar gasto específico</button>
+        </div>
+
+        <!-- Resumen por propietario -->
+        <div style="margin-top: 20px;">
+          <label>Resumen por propietario (monto a pagar):</label>
+          <div class="resumen-propietarios">
+            <table class="tabla-alicuotas" id="tablaResumenPropietarios">
+              <thead>
+                <tr><th>Propietario</th><th>Apartamento</th><th>Grupo</th><th>Monto base</th><th>Gastos específicos</th><th>Total (USD)</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <button type="submit" id="btnCrearRecibo" style="margin-top: 20px;">Crear Recibo y Deudas</button>
       </form>
     </div>
   </div>
@@ -344,22 +407,10 @@
       <h3 id="modalDeudaTitulo">Agregar Deuda</h3>
       <form id="formDeuda">
         <input type="hidden" id="deudaId">
-        <div>
-          <label>Propietario:</label>
-          <select id="propietarioSelect" required></select>
-        </div>
-        <div>
-          <label>Período (MM/AAAA):</label>
-          <input type="text" id="periodo" placeholder="03/2025" required>
-        </div>
-        <div>
-          <label>Monto (USD):</label>
-          <input type="number" step="0.01" id="montoUSD" required>
-        </div>
-        <div>
-          <label>Fecha de Vencimiento:</label>
-          <input type="date" id="fechaVencimiento">
-        </div>
+        <div><label>Propietario:</label><select id="propietarioSelect" required></select></div>
+        <div><label>Período (MM/AAAA):</label><input type="text" id="periodo" placeholder="03/2025" required></div>
+        <div><label>Monto (USD):</label><input type="number" step="0.01" id="montoUSD" required></div>
+        <div><label>Fecha de Vencimiento:</label><input type="date" id="fechaVencimiento"></div>
         <button type="submit">Guardar</button>
       </form>
     </div>
@@ -370,9 +421,7 @@
     <div class="modal-content">
       <span class="close">&times;</span>
       <h3>Importar Propietarios desde CSV</h3>
-      <div style="margin-bottom: 10px;">
-        <a href="#" id="descargarPlantilla" style="color: #007bff;">📥 Descargar plantilla CSV</a>
-      </div>
+      <div style="margin-bottom: 10px;"><a href="#" id="descargarPlantilla" style="color: #007bff;">📥 Descargar plantilla CSV</a></div>
       <input type="file" id="csvFile" accept=".csv">
       <div id="importProgress" style="margin-top: 10px; max-height: 200px; overflow: auto;"></div>
       <button id="procesarCSV" style="margin-top: 10px;">Procesar</button>
@@ -386,27 +435,15 @@
       <h3>Gestión de Usuarios</h3>
       <table id="tablaUsuarios" style="width:100%; margin-bottom:15px;">
         <thead>
-          
-            <th>ID</th>
-            <th>Usuario</th>
-            <th>Propietario</th>
-            <th>Apartamento</th>
-            <th>Rol</th>
-            <th>Acciones</th>
-           </thead>
+          <tr><th>ID</th><th>Usuario</th><th>Propietario</th><th>Apartamento</th><th>Rol</th><th>Acciones</th></tr>
+        </thead>
         <tbody></tbody>
-        </table>
+      </table>
       <div id="editarUsuarioForm" style="margin-top:15px; border-top:1px solid #ccc; padding-top:15px; display:none;">
         <h4>Editar Usuario</h4>
         <input type="hidden" id="editUserId">
-        <div>
-          <label>Nuevo nombre de usuario:</label>
-          <input type="text" id="editUsername" placeholder="Dejar en blanco para mantener">
-        </div>
-        <div>
-          <label>Nueva contraseña:</label>
-          <input type="password" id="editPassword" placeholder="Dejar en blanco para mantener">
-        </div>
+        <div><label>Nuevo nombre de usuario:</label><input type="text" id="editUsername" placeholder="Dejar en blanco para mantener"></div>
+        <div><label>Nueva contraseña:</label><input type="password" id="editPassword" placeholder="Dejar en blanco para mantener"></div>
         <button id="guardarUsuarioBtn">Guardar cambios</button>
         <button id="cancelarEdicionBtn">Cancelar</button>
       </div>
