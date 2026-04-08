@@ -440,7 +440,7 @@ app.delete('/api/recibos/:id', authenticateToken, async (req, res) => {
   try {
     // Verificar si hay deudas NO PAGADAS asociadas a este recibo
     const deudasPendientes = await pool.query(
-      'SELECT id FROM deudas WHERE recibo_id = $1 AND pagado = false',
+      'SELECT id FROM deudas WHERE recibo_id = $1 AND pagado = 0',  // CORREGIDO: antes era false
       [id]
     );
     if (deudasPendientes.rows.length > 0) {
