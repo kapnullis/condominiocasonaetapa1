@@ -1,3 +1,4 @@
+
 // public/master.js - Versión con mejoras solicitadas (descripción en gastos específicos)
 console.log('🖥️ Master UI cargada');
 
