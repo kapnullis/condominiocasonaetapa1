@@ -288,8 +288,8 @@ app.get('/api/propietarios/saldo', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT p.*,
-        COALESCE((SELECT SUM(monto_usd) FROM deudas WHERE propietario_id = p.id AND pagado = 0), 0) as total_deuda,
-        (p.saldo_favor - COALESCE((SELECT SUM(monto_usd) FROM deudas WHERE propietario_id = p.id AND pagado = 0), 0)) as saldo_neto
+        COALESCE((SELECT SUM(monto_usd) FROM deudas WHERE propietario_id = p.id AND (pagado = 0 OR pagado IS NULL)), 0) as total_deuda,
+        (p.saldo_favor - COALESCE((SELECT SUM(monto_usd) FROM deudas WHERE propietario_id = p.id AND (pagado = 0 OR pagado IS NULL)), 0)) as saldo_neto
       FROM propietarios p ORDER BY p.id
     `);
     res.json(result.rows);
@@ -440,7 +440,7 @@ app.delete('/api/recibos/:id', authenticateToken, async (req, res) => {
   try {
     // Verificar si hay deudas NO PAGADAS asociadas a este recibo
     const deudasPendientes = await pool.query(
-      'SELECT id FROM deudas WHERE recibo_id = $1 AND pagado = false',
+      'SELECT id FROM deudas WHERE recibo_id = $1 AND (pagado = 0 OR pagado IS NULL)',
       [id]
     );
     if (deudasPendientes.rows.length > 0) {
@@ -516,6 +516,7 @@ app.get('/api/pagos/pendientes', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ************ ENDPOINT CORREGIDO ************
 app.post('/api/pagos/:id/verificar', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
@@ -526,38 +527,75 @@ app.post('/api/pagos/:id/verificar', authenticateToken, async (req, res) => {
     if (!pago) throw new Error('Pago no encontrado');
     if (pago.estado !== 'pendiente') throw new Error('Ya verificado');
 
-    let montoUSD = pago.monto_usd || (pago.monto_bs / pago.tasa_bcv);
-    if (montoUSD <= 0) throw new Error('Monto inválido');
+    // Calcular monto en USD de forma segura
+    let montoUSD = pago.monto_usd;
+    if (!montoUSD || montoUSD <= 0) {
+      if (!pago.tasa_bcv || pago.tasa_bcv <= 0) throw new Error('Tasa BCV inválida');
+      montoUSD = pago.monto_bs / pago.tasa_bcv;
+    }
+    if (montoUSD <= 0) throw new Error('Monto en USD no válido');
 
-    const deudasRes = await client.query('SELECT * FROM deudas WHERE propietario_id = $1 AND pagado = 0 ORDER BY periodo', [pago.propietario_id]);
+    console.log(`[VERIFICAR] Pago ${id} | Propietario ${pago.propietario_id} | Monto USD: ${montoUSD}`);
+
+    // Obtener deudas pendientes (considera NULL como no pagado) ordenadas cronológicamente
+    const deudasRes = await client.query(
+      `SELECT * FROM deudas 
+       WHERE propietario_id = $1 AND (pagado = 0 OR pagado IS NULL) 
+       ORDER BY TO_DATE(periodo, 'MM/YYYY')`,
+      [pago.propietario_id]
+    );
+
+    console.log(`[VERIFICAR] Deudas pendientes encontradas: ${deudasRes.rows.length}`);
     let restante = montoUSD;
     for (const deuda of deudasRes.rows) {
+      console.log(`   -> Deuda ${deuda.id} (${deuda.periodo}) $${deuda.monto_usd}`);
       if (restante <= 0) break;
       if (restante >= deuda.monto_usd) {
         await client.query(
-          'UPDATE deudas SET pagado = 1, fecha_pago = $1, referencia_pago = $2, original_monto = COALESCE(original_monto, monto_usd) WHERE id = $3',
+          `UPDATE deudas SET 
+             pagado = 1, 
+             fecha_pago = $1, 
+             referencia_pago = $2, 
+             original_monto = COALESCE(original_monto, monto_usd) 
+           WHERE id = $3`,
           [pago.fecha_pago, pago.referencia, deuda.id]
         );
         restante -= deuda.monto_usd;
+        console.log(`      ✅ Pagada completamente. Restante: ${restante}`);
       } else {
         await client.query(
-          'UPDATE deudas SET monto_usd = $1, fecha_pago = $2, referencia_pago = $3, original_monto = COALESCE(original_monto, monto_usd) WHERE id = $4',
+          `UPDATE deudas SET 
+             monto_usd = $1, 
+             fecha_pago = $2, 
+             referencia_pago = $3, 
+             original_monto = COALESCE(original_monto, monto_usd) 
+           WHERE id = $4`,
           [deuda.monto_usd - restante, pago.fecha_pago, pago.referencia, deuda.id]
         );
+        console.log(`      🔸 Pago parcial, nuevo monto: ${deuda.monto_usd - restante}`);
         restante = 0;
       }
     }
+
     if (restante > 0) {
       await client.query('UPDATE propietarios SET saldo_favor = saldo_favor + $1 WHERE id = $2', [restante, pago.propietario_id]);
+      console.log(`[VERIFICAR] Saldo a favor generado: ${restante}`);
     }
-    await client.query('UPDATE pagos SET estado = $1, fecha_verificacion = CURRENT_TIMESTAMP, monto_usd = $2 WHERE id = $3', ['verificado', montoUSD, id]);
+
+    await client.query(
+      'UPDATE pagos SET estado = $1, fecha_verificacion = CURRENT_TIMESTAMP, monto_usd = $2 WHERE id = $3',
+      ['verificado', montoUSD, id]
+    );
+
     await client.query('COMMIT');
     res.json({ changes: 1, saldo_favor: restante });
   } catch (err) {
     await client.query('ROLLBACK');
+    console.error('[VERIFICAR] Error:', err.message);
     res.status(500).json({ error: err.message });
   } finally { client.release(); }
 });
+// ******************************************
 
 app.post('/api/pagos/:id/revertir', authenticateToken, async (req, res) => {
   const { id } = req.params;
